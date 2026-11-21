@@ -70,7 +70,7 @@ describe("Netman Provider #docker", function()
             assert.is_true(require("netman.providers.docker").init(), "Docker failed to accept that docker was found")
         end)
     end)
-    describe("#_read_file", function()
+    describe("#read_file", function()
         before_each(function()
             package.loaded['netman.tools.shell'] = nil
             package.loaded['netman.providers.docker'] = nil

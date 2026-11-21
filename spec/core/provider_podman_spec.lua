@@ -52,7 +52,7 @@ describe("Netman Provider #podman", function()
             assert.is_true(require("netman.providers.podman").init(), "Podman failed to accept that podman was found")
         end)
     end)
-    describe("#_read_file", function()
+    describe("#read_file", function()
         before_each(function()
             package.loaded['netman.tools.shell'] = nil
             package.loaded['netman.providers.podman'] = nil
@@ -86,7 +86,7 @@ describe("Netman Provider #podman", function()
             local api = require("netman.tools.options").api
             assert.is_true(result.success, "Podman read_file should succeed on successful container.get")
             assert.is_equal(api.READ_TYPE.FILE, result.type, "Podman read_file should return FILE read type")
-            assert.is_truthy(result.data.local_path:find('somelocalfile', 1, true), "Podman read_file should return local_path containing unique_name")
+            assert.is_truthy(result.data.local_path:match('somelocalfile$'), "Podman read_file should return local_path ending with unique_name")
             assert.is_equal('podman://somecontainer///someremotefile', result.data.origin_path, "Podman read_file should return origin_path")
         end)
     end)
@@ -97,22 +97,23 @@ describe("Netman Provider #podman", function()
 
         it("should return EXPLORE data on successful find", function()
             local uri = { to_string = function() return "podman://somecontainer///somepath/" end }
-            local container = {
-                find = function()
-                    return { "/somepath/file.txt" }
-                end,
-                _stat_parse = function(_, _)
-                    return {
-                        ["/somepath/file.txt"] = {
+            local podman = require("netman.providers.podman")
+            local original_find = podman.internal.find
+            podman.internal.find = function()
+                return {
+                    success = true,
+                    data = {
+                        ["podman://somecontainer///somepath/file.txt"] = {
                             URI = "podman://somecontainer///somepath/file.txt",
                             FIELD_TYPE = "DESTINATION",
                             NAME = "file.txt",
                             ABSOLUTE_PATH = "/somepath/file.txt",
                         }
                     }
-                end
-            }
-            local result = require("netman.providers.podman").internal.read_directory(uri, container)
+                }
+            end
+            local result = podman.internal.read_directory(uri, {})
+            podman.internal.find = original_find
             local api = require("netman.tools.options").api
             assert.is_true(result.success)
             assert.is_equal(api.READ_TYPE.EXPLORE, result.type)
