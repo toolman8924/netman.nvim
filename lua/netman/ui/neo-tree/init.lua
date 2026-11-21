@@ -1,7 +1,6 @@
 -- There be a weird bug where the cursor will sometimes jump to the top of the buffer.
 -- No idea why. Strange things be happening me boi
 
-local netman_utils = require("netman.tools.utils")
 local netman_api = require("netman.api")
 local netman_types = require("netman.tools.options").api.READ_TYPE
 local netman_errors = require("netman.tools.options").api.ERRORS
@@ -10,7 +9,6 @@ local netman_ui = require("netman.ui")
 local UI_EVENTS = require("netman.tools.options").ui.EVENTS
 local logger = netman_ui.get_logger()
 
-local neo_tree_events = require("neo-tree.events")
 local neo_tree_utils = require("neo-tree.utils")
 local neo_tree_renderer = require("neo-tree.ui.renderer")
 local neo_tree_defaults = require("netman.ui.neo-tree.defaults")
@@ -247,7 +245,7 @@ local function tree_to_nui(in_tree, do_sort, group_by_function)
                 table.insert(new_tree, item)
             end
         end
-    --     -- We should probably use the 
+    --     -- We should probably use the
     --     -- neo_tree_utils.sort_by_tree_display function instead
         tree = new_tree
     end
@@ -287,10 +285,6 @@ local function navigate_root_provider(nui_node)
         return tree_to_nui(providers, true)
     end
     return nil, true
-end
-
-local function navigate_file(nui_node)
-    -- Do nothing. Don't use this
 end
 
 local function navigate_directory(nui_node)
@@ -401,7 +395,7 @@ local function open_directory(directory, parent_id, dont_render)
     end
 end
 
-local function open_stream(stream)
+local function open_stream(_stream)
 
 end
 
@@ -556,7 +550,7 @@ local function navigate_uri(nui_node, state, complete_callback, remaining_uris, 
     if node.extra.get_state and not node.extra.state then
         node.extra.state = node.extra.get_state()
     end
-    local handle = open_uri(node.id, link_callback, dest_callback, message_callback)
+    open_uri(node.id, link_callback, dest_callback, message_callback)
     -- Returning "true" so we can update to show the "refresh"/"loading" icon
     return nil, true
 end
@@ -565,7 +559,7 @@ local function delete_uri(nui_nodes, state, complete_callback, internal_only)
     local tree = state.tree
     local uris = {}
     local redraw_nodes = {}
-    local head = nil
+    local head
     while #nui_nodes > 0 do
         head = table.remove(nui_nodes)
         table.insert(redraw_nodes, head:get_parent_id())
@@ -691,8 +685,8 @@ local function refresh_uri(nui_nodes, state, complete_callback, focused_node_id)
     local mapped_parents = { }
     local refreshed_nodes = {}
     local expanded_nodes = { }
-    local head = nil
-    local child_node = nil
+    local head
+    local child_node
     local redraw_nodes = {}
     -- Preloading children. Probably poo that we iterate this twice...
     for _, node in ipairs(nui_nodes) do
@@ -873,7 +867,7 @@ local function add_uri(state, new_name, opts, complete_callback)
     local current_node = opts.target_node or state.tree:get_node()
     local current_node_uri = current_node:get_id()
     local path = {}
-    local new_path = nil
+    local new_path
     local iter_path = current_node_uri
     if iter_path:match(string.format("%s$", path_sep)) then
         iter_path = iter_path:sub(1, iter_path:len() - path_sep:len())
@@ -884,7 +878,7 @@ local function add_uri(state, new_name, opts, complete_callback)
         -- Strip off the trailing path separator as it is going to be added each time we create this
         iter_path = new_path:sub(1, new_path:len() - path_sep:len())
     end
-    -- Basically, the item was specified to be a "link" and we weren't told to force 
+    -- Basically, the item was specified to be a "link" and we weren't told to force
     -- it to be one
     if not new_name:match(string.format("%s$", path_sep)) and not opts.force_link then
         local modified_last_item = path[#path]
@@ -961,7 +955,7 @@ local function add_uri(state, new_name, opts, complete_callback)
             )
         -- Because the underlying write request may still be synchronous,
         -- even if we ask it to be async, we need to check to see
-        -- if the process has already been resolved. IE, was the 
+        -- if the process has already been resolved. IE, was the
         -- process ran synchronously? If so, then there wont be anything
         -- in the map and there is no reason to save the handle
         if process_map[uri] then
@@ -973,7 +967,7 @@ end
 
 ----------------- /\ URI Helper Functions
 
-function M.internal.generate_tree(state)
+function M.internal.generate_tree(_state)
     return tree_to_nui(M._root, true, M.internal.defaults.grouper)
 
 end
@@ -983,10 +977,6 @@ function M.internal.finish_navigate(state, render_tree, render_parent, do_redraw
         neo_tree_renderer.redraw(state)
     elseif render_tree then
         -- Purge children?
-        local message = "Rendering new tree"
-        if render_parent then
-            message = string.format("%s under %s", message, render_parent)
-        end
         neo_tree_renderer.show_nodes(render_tree, state, render_parent)
     end
     if complete_callback then complete_callback() end
@@ -1027,7 +1017,7 @@ function M.refresh(state, callback)
         logger.warn("I have no idea what you expect me to refresh bucko...")
         return
     end
-    local raw_target_nodes = { }
+    local raw_target_nodes
     -- The system said to refresh these nodes. Ignore
     -- actually marked nodes
     if next(M.internal.internally_marked_nodes) then
@@ -1091,7 +1081,7 @@ function M.delete(state, confirmed, callback)
         end
     end
     local target_nodes = {}
-    -- TODO: Consider adding a `deletable` attribute to 
+    -- TODO: Consider adding a `deletable` attribute to
     -- the node.extra and check for that instead
     for _, target_node in ipairs(raw_target_nodes) do
         logger.trace("Processing delete request for", target_node)
@@ -1323,7 +1313,7 @@ function M.paste_node(state)
         end
         ::continue::
     end
-    local callback = function(data, complete)
+    local callback = function(data, _complete)
         if data and data.message then
             logger.warnn(data.message)
             -- TODO: implement retry logic
@@ -1340,10 +1330,10 @@ function M.paste_node(state)
     end
     if M.internal.mark_action == M.constants.ACTIONS[1] then
         -- Do a copy action
-        local handle = netman_api.copy(uris, target_uri, {}, callback)
+        netman_api.copy(uris, target_uri, {}, callback)
         -- TODO: Save the handle somewhere?
     elseif M.internal.mark_action == M.constants.ACTIONS[2] then
-        local handle = netman_api.move(uris, target_uri, {}, callback)
+        netman_api.move(uris, target_uri, {}, callback)
     end
 end
 

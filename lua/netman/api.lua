@@ -76,18 +76,7 @@ M.version = 1.15
 
 local protocol_pattern_sanitizer_glob = '[%%^]?([%w-.]+)[:/]?'
 local protocol_from_path_glob = '^([%w%-.]+)://'
-local package_path_sanitizer_glob = '([%.%(%)%%%+%-%*%?%[%^%$]+)'
 -- TODO(Mike): Potentially implement auto deprecation/enforcement here?
-local _provider_required_attributes = {
-    'name'
-    , 'protocol_patterns'
-    , 'version'
-    , 'read'
-    , 'write'
-    , 'delete'
-    , 'get_metadata'
-}
-
 -- WARN: Do not rely on these functions existing
 -- WARN: Do not use these functions in your code
 -- WARN: If you put an issue in saying anything about using
@@ -136,9 +125,10 @@ function M.internal.init_config()
         if next(_lines) then
             local config_as_json_string = table.concat(_lines, '')
             logger.trace("Decoding Netman Configuration")
-            local success = false
-            success, _config = pcall(JSON.decode, JSON, config_as_json_string)
-            if not success then
+            local success, decoded = pcall(JSON.decode, JSON, config_as_json_string)
+            if success then
+                _config = decoded
+            else
                 _config = {}
             end
         end
@@ -328,7 +318,7 @@ function M.internal.write_au_callback(callback_details)
     return false
 end
 
-function M.internal.buf_focus_au_callback(callback_detail)
+function M.internal.buf_focus_au_callback(_callback_detail)
     -- For the time being, we probably dont care about when a buffer is focused.
     -- However in the future, it would be helpful if we can tell the UIs that one of their open
     -- files is in focus. Idk, it might make more sense to let them track that
@@ -589,16 +579,16 @@ end
 --     The callback to call if there is any errors that occur during the processing
 --     of the request
 -- @param response_callback function | nil
---     So this one is a bit weird. This is the function to call when there is a 
---     response. Note, in order to properly perform the "ask" part of ASP, 
---     set this to `nil` if you wish to run synchronously only. Basically, 
---     just pass the consumer callback through to this. I know it seems weird. 
+--     So this one is a bit weird. This is the function to call when there is a
+--     response. Note, in order to properly perform the "ask" part of ASP,
+--     set this to `nil` if you wish to run synchronously only. Basically,
+--     just pass the consumer callback through to this. I know it seems weird.
 --
 --     Just trust me bro.
 -- @return table | nil
---     This function has no idea what it's returning. It is going to return 
+--     This function has no idea what it's returning. It is going to return
 --     (basically) whatever it gets back from the response callback, or the raw data
---     if no response function is returned. If the call passes ASP, it will 
+--     if no response function is returned. If the call passes ASP, it will
 --     return a proper netman async handle
 --     Otherwise this will return nil
 function M.internal.asp(provider, sync_function_name, async_function_name, data, error_callback, response_callback)
@@ -608,7 +598,7 @@ function M.internal.asp(provider, sync_function_name, async_function_name, data,
     local ask = response_callback and true or false
     logger.tracef("Performing ASP (ask) check on %s -> Was async requested? %s", provider.name, ask)
     local say = ask and provider[async_function_name] and true or false
-    local prove = false
+    local prove
     if ask then
         logger.tracef("Performing ASP (say) check on %s -> Is `%s` available? %s", provider.name, async_function_name, say)
         func = say and async_function_name or func
@@ -708,7 +698,7 @@ end
 -- be laughed at and ridiculed
 function M.internal._process_read_result(uri, provider, data)
     local provider_name = provider.name or 'nil'
-    local processed_data = nil
+    local processed_data
     local validated_response = M.internal._process_provider_response(uri, provider, data)
     if not validated_response.success then
         logger.warn(string.format("There was a potential failure in reading %s", uri), validated_response)
@@ -777,7 +767,7 @@ end
 --     - async, success
 --     Its pretty obvious that the results are async as they are being streamed to
 --     you, and success is also obvious if you are receiving the output
---     
+--
 --     If the read request is synchronous, you will receive the following table
 --     {
 --         async: boolean,
@@ -840,11 +830,11 @@ end
 --     }
 function M.read(uri, opts, callback)
     local orig_uri = uri
-    local provider, cache = nil, nil
+    local provider, cache
     if not callback and M.internal.registered_explore_consumer then
         callback = M.internal.registered_explore_consumer
     end
-    uri, provider, cache, _ = M.internal.validate_uri(uri)
+    uri, provider, cache = M.internal.validate_uri(uri)
     if not uri or not provider then
         return {
             success = false,
@@ -955,10 +945,10 @@ function M.read(uri, opts, callback)
     end
 end
 
-function M.write(uri, data, options, callback)
+function M.write(uri, data, _options, callback)
     data = data or {}
-    options = options or {}
-    local provider, cache, lines = nil, nil, {}
+    local provider, cache, lines
+    lines = {}
     uri, provider, cache = M.internal.validate_uri(uri)
     if not uri or not provider then
         return {
@@ -984,29 +974,29 @@ function M.write(uri, data, options, callback)
     -- TODO: Add support for data.file to upload local files
     local return_handle = M.internal.wrap_shell_handle()
     local return_data = nil
-    local protected_callback = function(_data, complete)
+    local protected_callback = function(cb_data, complete)
         if not callback then return end
         -- There is nothing to process, leave us alone
-        if _data == nil and complete == nil then return end
-        local success, _error = pcall(callback, _data, complete)
+        if cb_data == nil and complete == nil then return end
+        local success, _error = pcall(callback, cb_data, complete)
         if not success then
             logger.warn("Write return processing experienced a failure!", _error)
         end
     end
-    local result_callback = function(_data, complete)
+    local result_callback = function(cb_data, complete)
         -- Short circuit in case we are killed while still processing
         -- If this is a sync call (either by the consumer or ASP failure)
         -- it is impossible for this to be set to true
         if return_handle._stopped == true then return end
-        if _data and _data.handle then
+        if cb_data and cb_data.handle then
             logger.debug("Received new handle reference from provider during async write. Updating our handle pointer")
-            return_handle._handle = _data.handle
+            return_handle._handle = cb_data.handle
             return
         end
-        if _data and _data.message then
-            logger.debugf("Logging message provided by %s for consumer: %s", provider, _data.message)
+        if cb_data and cb_data.message then
+            logger.debugf("Logging message provided by %s for consumer: %s", provider, cb_data.message)
         end
-        return_data = _data
+        return_data = cb_data
         protected_callback(return_data, complete)
     end
     local error_callback = function(err)
@@ -1104,21 +1094,21 @@ function M.move(uris, target_uri, opts, callback)
 end
 
 -- Attempts to perform an intra-provider copy/move of uri(s) to a target uri.
--- 
+--
 -- Note: This does _not_ allow **inter**-provider copy/move and any attempt to do so
 -- will result in an error.
 --
 -- Note: This does _not_ provide "same host" checking, that is something that the provider
 -- is expected to handle if it cares about that. This means that
 -- as a provider, you may receive a request to copy/move data from one host to another.
--- 
+--
 -- @param uris table | string
 --     The uris to copy. This can be a table of strings or a single string
 -- @param target_uri string
 --     The uri to copy the uris to
 -- @param opts table | nil
 --     Default: {}
---     Any options for the copy function. Valid options 
+--     Any options for the copy function. Valid options
 --         - cleanup
 --             - If provided, we will tell the originating provider to delete the origin uri after copy
 --             has been completed
@@ -1130,10 +1120,9 @@ end
 --         message: { message = "Error that occurred during rename "} -- (Optional)
 --     }
 --     ```
-function M.copy(uris, target_uri, opts, callback, do_move)
-    opts = opts or {}
+function M.copy(uris, target_uri, _opts, callback, do_move)
     local command = do_move and 'move' or 'copy'
-    local target_provider, target_cache = nil, nil
+    local target_provider, target_cache
     target_uri, target_provider, target_cache = M.internal.validate_uri(target_uri)
     if not target_uri or not target_provider then
         return {
@@ -1144,7 +1133,7 @@ function M.copy(uris, target_uri, opts, callback, do_move)
         }
     end
     for _, uri in ipairs(uris) do
-        local provider = nil
+        local provider
         uri, provider = M.internal.validate_uri(uri)
         if not uri or not provider or provider ~= target_provider then
             return {
@@ -1255,7 +1244,7 @@ end
 --         The maximium depth to perform the search
 function M.search(uri, param, opts)
     -- TODO
-    local provider, cache = nil, nil
+    local provider, cache
     uri, provider, cache = M.internal.validate_uri(uri)
     if not provider then
         logger.warn(string.format("Cannot find provider for %s", uri))
@@ -1267,16 +1256,14 @@ function M.search(uri, param, opts)
     end
     opts = opts or { search = 'filename', case_sensitive = false}
     -- Validate that if we are doing this async, the return handle has the right info
-    if opts.output_callback then
-    end
     local data = provider.search(uri, cache, param, opts)
     return data
 end
 
 function M.delete(uri, callback)
     local orig_uri = uri
-    local provider, cache = nil, nil
-    uri, provider, cache, _ = M.internal.validate_uri(uri)
+    local provider, cache
+    uri, provider, cache = M.internal.validate_uri(uri)
     if not uri or not provider then
         return {
             success = false,
@@ -1363,12 +1350,11 @@ function M.delete(uri, callback)
     end
 end
 
-function M.get_metadata(uri, metadata_keys, options, callback)
-    options = options or {}
+function M.get_metadata(uri, metadata_keys, _options, callback)
     local orig_uri = uri
     metadata_keys = metadata_keys or {}
-    local provider, cache = nil, nil
-    uri, provider, cache, _ = M.internal.validate_uri(uri)
+    local provider, cache
+    uri, provider, cache = M.internal.validate_uri(uri)
     if not uri or not provider then
         return {
             success = false,
@@ -1583,7 +1569,7 @@ function M.load_provider(provider_path)
     if provider.init then
         -- Consider having this being a timeout based async job?
         -- Bad actors will break the plugin altogether
-        local valid = nil
+        local valid
         status, valid = pcall(
             provider.init
             , provider_config

@@ -107,7 +107,7 @@ Shell.CONSTANTS = {
 ---     - "manual" (See below for the requirements for that)
 ---     - "plenary"
 ---     - "vimjob"
---- 
+---
 --- @param handler_opts table
 ---     This is a bit complicated so hang on!
 ---     There are several ways to create a new async handler, and they are all associated with the
@@ -204,7 +204,7 @@ function Shell.new_async_handler(type, handler_opts)
         __exit_callbacks = {},
         __dun = false
     }
-    local required_attrs = {}
+    local required_attrs
     if type == 'vimjob' then
         required_attrs = {"id"}
         for _, attr in ipairs(required_attrs) do
@@ -222,7 +222,7 @@ function Shell.new_async_handler(type, handler_opts)
         local success, _
         success, _ = pcall(function() handle.pid = handler_opts:pid() end)
         assert(success, "Unable to get pid from plenary job for Async Handle!")
-        handle.read = function(target, save)
+        handle.read = function(target, _save)
             -- We will _not_ manipulate the plenary pipe
             if target == 'stdout' and handler_opts.enable_recording then
                 return handler_opts:result()
@@ -422,7 +422,7 @@ function Shell:_prepare()
             read_target = read_target or 'stdout'
             assert(read_target == 'stdout' or read_target == 'stderr', string.format("Invalid read target %s. Read target must be stdout or stderr", read_target))
             local pipe = {}
-            local target_pipe = nil
+            local target_pipe
             if read_target == 'stdout' then
                 target_pipe = self.stdout
             else
@@ -539,7 +539,7 @@ end
 --- @return table/nil
 ---     @see Shell:dump_self_as_table()
 ---     Note: If the shell process is asynchronous, this
----     will return instead a table that contains a handle to the process, as well as 
+---     will return instead a table that contains a handle to the process, as well as
 ---     the pid of the process. This will look like
 ---     { handle: table, pid: integer }
 ---     This handle will contain the following 4 attriutes.
@@ -710,8 +710,6 @@ function Shell:dump_self_to_table()
     for _, arg in ipairs(self._args) do
         table.insert(cmd_pieces, arg)
     end
-    local elapsed_time = self._end_time and self._end_time - self._start_time
-    local elapsed_time_ml = self._end_time and (self._end_time - self._start_time) / 1000000
     return {
         pid = self._pid,
         command = self._command_as_string,

@@ -169,7 +169,7 @@ end
 
 function M.get_least_common_path(paths)
     -- Walk through each path list
-    -- Add each path to a flatmap. 
+    -- Add each path to a flatmap.
     -- If the path has a parent, remove the parent from its parent
     -- Purge all items in flatmap that have no children
     -- Return the keys remaining
@@ -210,7 +210,7 @@ function M.get_least_common_path(paths)
     return return_keys
 end
 
-local function is_buffer_free(buffer, file_name)
+local function is_buffer_free(buffer, _file_name)
     buffer = buffer or 0
     -- Does the buffer have a name?
     local buffer_name = vim.api.nvim_buf_get_name(buffer)

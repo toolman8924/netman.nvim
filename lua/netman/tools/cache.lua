@@ -45,7 +45,7 @@ end
 ---     Cache.SECOND, Cache.MINUTE, Cache.HOUR, Cache.DAY, Cache.FOREVER
 function Cache:add_item(key, item, ttl)
     ttl = ttl or self.__default_ttl
-    local expiration = nil
+    local expiration
     if ttl == Cache.FOREVER then
         expiration = ttl
     else

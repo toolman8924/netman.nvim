@@ -194,22 +194,22 @@ function SSH:new(auth_details, provider_cache)
     -- where to save the file to
     table.remove(_ssh._get_command, 1)
 
-    self.__index = function(_table, _key)
-        if _key == 'os' then
-            return SSH._get_os(_table)
+    self.__index = function(tbl, key)
+        if key == 'os' then
+            return SSH._get_os(tbl)
         end
-        if _key == 'home' then
-            return SSH._get_user_home(_table)
+        if key == 'home' then
+            return SSH._get_user_home(tbl)
         end
 
-        if _key == 'archive_schemes' or _key == '_archive_commands' or _key == '_extract_commands' then
-            local details = SSH._get_archive_availability_details(_table)
-            _table.archive_schemes = details.archive_schemes
-            _table._extract_commands = details.extract_commands
-            _table._archive_commands = details.archive_commands
-            return _table[_key]
+        if key == 'archive_schemes' or key == '_archive_commands' or key == '_extract_commands' then
+            local details = SSH._get_archive_availability_details(tbl)
+            tbl.archive_schemes = details.archive_schemes
+            tbl._extract_commands = details.extract_commands
+            tbl._archive_commands = details.archive_commands
+            return tbl[key]
         end
-        return self[_key]
+        return self[key]
     end
     -- These are all lazy loaded via the index function
     -- _ssh.os = ''
@@ -758,7 +758,7 @@ function SSH:mv(locations, target_location, opts)
     end
     locations = __
     if #locations > 1 then
-        table.insert(mv_comand, '-t')
+        table.insert(mv_command, '-t')
     end
     table.insert(mv_command, target_location)
     mv_command = table.concat(mv_command, ' ')
@@ -1103,7 +1103,8 @@ function SSH:find(location, opts)
     return output.stdout
 end
 
-function SSH:grep(uri, param, opts)
+function SSH:grep(_uri, _param, _opts)
+    local _ = self
     error("Grep is not implemented on ssh yet!")
 end
 
@@ -1340,7 +1341,7 @@ function SSH:get(location, output_dir, opts)
         }
         if opts.finish_callback then opts.finish_callback(return_details) end
     end
-    local copy_command = nil
+    local copy_command
     local command_options = {
         [command_flags.STDERR_JOIN] = '',
         [command_flags.EXIT_CALLBACK] = finish_callback,
@@ -1508,7 +1509,7 @@ function SSH:_stat_parse(stat_output, target_flags)
     for _, line in ipairs(stat_output) do
         line = line:gsub('(\\0)', '')
         local item = {}
-        local _type = nil
+        local _type
         for _, pattern in ipairs(find_pattern_globs) do
             local key, is_number, value = line:match(pattern)
             key = key:gsub('(^\n)', '')
@@ -1620,7 +1621,7 @@ function SSH:stat_mod(locations, targets, permission_mods, opts)
             permission = permission .. 'x'
         end
     end
-    local _mod = ''
+    local _mod
     if opts.remove_mod then _mod = '-' else _mod = '+' end
     local command = string.format('chmod %s%s%s', target, _mod, permission)
     for _, location in ipairs(locations) do
@@ -1655,8 +1656,7 @@ end
 ---     host:own_mod('/tmp/', { user = 'root', group = 'root' })
 ---     -- This will modify the group of /tmp/somedir and /tmp/somedir2 to be nogroup
 ---     host:own_mod({'/tmp/somedir', '/tmp/somedir2'}, { group = 'nogroup' })
-function SSH:own_mod(locations, ownership, opts)
-    opts = opts or {}
+function SSH:own_mod(locations, ownership, _opts)
     if type(locations) ~= 'table' or #locations == 0 then locations = { locations } end
     assert(ownership, "Invalid ownership provided")
     local command = { 'chown' }
@@ -1847,7 +1847,7 @@ end
 ---     - OS
 ---     - ENTRYPOINT
 ---         - Note, ENTRYPOINT may be a function as well, if getting the ENTRYPOINT is "painful" to get
-function M.ui.get_host_details(config, host, provider_cache)
+function M.ui.get_host_details(_config, host, provider_cache)
     -- TODO, its probably worth caching this stuff in our config instead of reaching out to each server to get the details
     local connection = SSH:new(host, provider_cache)
     local get_path = function()
@@ -2098,14 +2098,13 @@ end
 --- Exposed endpoints
 
 function M.read_a(uri, cache, callback)
-    local host = nil
     if uri.__type and uri.__type == 'netman_uri' then
         uri = uri.uri
     end
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
     uri = validation.uri
-    host = validation.host
+    local host = validation.host
     -- This should really be asynchronous
     logger.debugf("Checking type of %s to determine how to read it", uri:to_string('remote'))
     local stat = host:stat(uri, { M.internal.SSH.CONSTANTS.STAT_FLAGS.TYPE })
@@ -2239,16 +2238,14 @@ end
 function M.search(uri, cache, param, opts)
     opts = opts or {}
     opts.search_param = param
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
     uri = validation.uri
-    host = validation.host
+    local host = validation.host
     return M.internal.find(uri, host, opts)
 end
 
 function M.write_a(uri, cache, data, callback)
-    local host = nil
     if uri.__type and uri.__type == 'netman_uri' then
         uri = uri.uri
     end
@@ -2256,7 +2253,7 @@ function M.write_a(uri, cache, data, callback)
     if validation.error then return validation end
     uri = validation.uri
     logger.debug("Attempting write to", uri)
-    host = validation.host
+    local host = validation.host
     local complete_func = function()
         callback({ success = true, data = { uri = uri } }, true)
     end
@@ -2377,9 +2374,8 @@ function M.write_a(uri, cache, data, callback)
     end
 end
 
-function M.write(uri, cache, data, opts)
-    opts = opts or {}
-    local handle = nil
+function M.write(uri, cache, data, _opts)
+    local handle
     local dead = false
     local write_result = nil
     local cb = function(response)
@@ -2407,11 +2403,10 @@ function M.write(uri, cache, data, opts)
 end
 
 function M.delete_a(uri, cache, callback)
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
     uri = validation.uri
-    host = validation.host
+    local host = validation.host
     local handle = nil
 
     local rm = function(response)
@@ -2451,7 +2446,7 @@ function M.delete(uri, cache)
     local delete_result = nil
     local dead = false
     local timeout = 2000
-    local handle = nil
+    local handle
     local kill_timer = vim.loop.new_timer()
     local cb = function(response)
         if response.success ~= nil then
@@ -2482,11 +2477,10 @@ function M.connect_host(uri, cache)
 end
 
 function M.connect_host_a(uri, cache, exit_callback)
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
     uri = validation.uri
-    host = validation.host
+    local host = validation.host
     local callback = function(response)
         local cleaned_response = {
             success = response.success,
@@ -2521,16 +2515,15 @@ function M.connect_host_a(uri, cache, exit_callback)
     })
 end
 
-function M.close_connection(uri, cache)
+function M.close_connection(_uri, _cache)
 
 end
 
 function M.get_metadata_a(uri, cache, flags, callback)
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
     uri = validation.uri
-    host = validation.host
+    local host = validation.host
     local cb = function(response)
         if not response or not response.success or not response.data then
             local _error = string.format("Unable to get metadata for %s", uri:to_string('remote'))
@@ -2569,20 +2562,17 @@ function M.get_metadata(uri, cache, flags)
     return stat_result or { success = false, message = { message = "Unknown error occured during stat" } }
 end
 
-function M.update_metadata(uri, cache, updates)
+function M.update_metadata(uri, cache, _updates)
     -- TODO:
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
-    uri = validation.uri
-    host = validation.host
+    local _ = uri
 end
 
 function M.copy(uris, target_uri, cache)
-    local host = nil
     local validation = M.internal.validate(target_uri, cache)
     if validation.error then return validation end
-    host = validation.host
+    local host = validation.host
     target_uri = validation.uri
     if type(uris) ~= 'table' then uris = { uris } end
     local validated_uris = {}
@@ -2603,10 +2593,9 @@ function M.copy(uris, target_uri, cache)
 end
 
 function M.move(uris, target_uri, cache)
-    local host = nil
     local validation = M.internal.validate(target_uri, cache)
     if validation.error then return validation end
-    host = validation.host
+    local host = validation.host
     target_uri = validation.uri
     if type(uris) ~= 'table' then uris = { uris } end
     local validated_uris = {}
@@ -2701,11 +2690,10 @@ function M.archive.put_a(uri, cache, archives, callback)
         assert(archive.compression, _err .. ": Missing Compression attribute")
         assert(archive.name, _err .. ": Missing Name attribute")
     end
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
     uri = validation.uri
-    host = validation.host
+    local host = validation.host
     local dead = false
 
     local mkdir_handle = nil
@@ -2824,14 +2812,13 @@ function M.archive.put(uri, cache, archives)
     local put_result = nil
     local dead = false
     local timeout = 10000
-    local handle = nil
     local kill_timer = vim.loop.new_timer()
     local cb = function(response)
         if response.success ~= nil then
             put_result = response
         end
     end
-    handle = M.archive.put_a(uri, cache, archives, cb)
+    local handle = M.archive.put_a(uri, cache, archives, cb)
     kill_timer:start(timeout, 0, function()
         dead = true
         logger.warn(string.format("Put handle took too long. Killing pid %s", handle.pid))
@@ -2847,12 +2834,9 @@ end
 
 function M.archive.schemes(uri, cache)
     assert(cache, string.format("No cache provided for archive scheme fetch of %s", uri))
-    local host = nil
     local validation = M.internal.validate(uri, cache)
     if validation.error then return validation end
-    uri = validation.uri
-    host = validation.host
-    return host.archive_schemes
+    return validation.host.archive_schemes
 end
 
 function M.init(config)

@@ -65,9 +65,9 @@ local M = {
 --- @param opts table
 ---     A table of options (I mean, what else did you expect here?)
 ---     Valid keys and their values
----     - only_opts boolean
+---     - onlyopts boolean
 ---         Default: false
----         If provided, when we create the logger object, we will _only_ use the 
+---         If provided, when we create the logger object, we will _only_ use the
 ---         options table provided. This means that no defaults will be set. Not,
 ---         using this option means you may get errors if you omit any required options
 ---     - level integer
@@ -206,14 +206,14 @@ M.new = function(opts)
         end
         _loggers[logger.name] = nil
     end
-    logger.emit = function(log_level, session_id, message, _opts)
-        local timestamp = os.date(_opts.log_timestamp_format or CONSTANTS.LOG_TIMESTAMP_FORMAT)
+    logger.emit = function(log_level, session_id, message, emit_opts)
+        local timestamp = os.date(emit_opts.log_timestamp_format or CONSTANTS.LOG_TIMESTAMP_FORMAT)
         local header_padding = ''
         local stack_info = debug.getinfo(logger.offset, 'Sln')
         message = message or ''
-        if _opts.header_padding_count then
+        if emit_opts.header_padding_count then
             -- Some quick garbage to generate header padding
-            for _=0, _opts.header_padding_count do header_padding = header_padding .. ' ' end
+            for _=0, emit_opts.header_padding_count do header_padding = header_padding .. ' ' end
         end
         local header = string.format(
             '[%s] [SID: %s] [Logger: %s] [Level: %s]%s -- %s:%s:%s',
@@ -223,8 +223,8 @@ M.new = function(opts)
         if type(message) == 'table' then message = vim.inspect(message, {newline = '\n'}) end
         if type(message) == 'function' then message = '<function>' end
         local log_parts = { message }
-        if _opts.details then
-            for _, detail in ipairs(_opts.details) do
+        if emit_opts.details then
+            for _, detail in ipairs(emit_opts.details) do
                 if type(detail) == 'table' then
                     table.insert(log_parts, vim.inspect(detail, {newline = '\n'}))
                 else
@@ -233,7 +233,7 @@ M.new = function(opts)
             end
         end
         log_parts = { table.concat(log_parts, ' ') }
-        if _opts.dump_callstack then
+        if emit_opts.dump_callstack then
             table.insert(log_parts, debug.traceback("", 3))
         end
         if not _session_logs[session_id] then _session_logs[session_id] = {} end
@@ -243,14 +243,14 @@ M.new = function(opts)
             -- Keep popping the head off the internal log queue until we at the limit
             table.remove(_session_logs[session_id], 1)
         end
-        if not _opts.filtered and logger._log_file_handle then
+        if not emit_opts.filtered and logger._log_file_handle then
             logger._log_file_handle:write(header .. '\t' .. _generated_log .. '\n')
             -- I wonder if we actually need to flush??
             logger._log_file_handle:flush()
         end
         -- Little bit of jank to maybe ensure that we can notify even if we
         -- are running in a different thread
-        if _opts.notify then
+        if emit_opts.notify then
             -- It is maybe possible that we dont need schedule since new_async is
             -- a link to the main ui thread?
             -- TODO: It seems that new_async does not work inside new_work...?
