@@ -417,57 +417,92 @@ describe("Netman Provider #podman", function()
         end)
  
     end)
-    describe("#_validate_container", function()
-        _input = nil
+    describe("#validate", function()
+        local original_new_container
+        local original_shell
+
         before_each(function()
             package.loaded['netman.providers.podman'] = nil
-            package.loaded['netman.tools.utils'] = nil
-            _input = vim.ui.input
-        end)
-        after_each(function()
-            vim.ui.input = _input
-            package.loaded['netman.tools.utils'] = nil
-        end)
-        it("should throw an error if no container is provided", function()
-            assert.has_error(function()
-                require("netman.providers.podman").internal._validate_container("", nil, nil)
-            end,
-            "No container provided to validate!",
-            "Failed to get the appropriate error on invalid container name"
-            )
-        end)
-        it("should short circuit if the cached container status is RUNNING", function()
-            local cache = require("netman.tools.cache"):new()
-            cache:add_item('container_status', 'RUNNING')
-            assert.is_equal(require("netman.providers.podman").internal._validate_container("", "", cache), "RUNNING", "Failed to retrieve the cached container state")
-        end)
-        it("should complain on an error", function()
-            require("netman.providers.podman").internal._is_container_running = function()
-                return 'ERROR'
-            end
-            local _error_called = false
-            require("netman.tools.utils").logger.errorn = function() _error_called = true end
-            local cache = require("netman.tools.cache"):new()
-            assert.is_nil(require("netman.providers.podman").internal._validate_container('', '', cache), "Podman did not fail on error state of container")
-            assert.is_not_false(_error_called, "Error was not thrown on invalid podman container state")
-        end)
-        it("should return nil on invalid container", function()
-            require("netman.providers.podman").internal._is_container_running = function()
-                return 'INVALID'
-            end
-            local cache = require("netman.tools.cache"):new()
-            assert.is_nil(require("netman.providers.podman").internal._validate_container('', '', cache), "Podman did not fail on invalid state of container")
-        end)
-        it("should prompt to start stopped container", function()
-            require("netman.providers.podman").internal._is_container_running = function()
-                return 'NOT_RUNNING'
-            end
-            local cache = require("netman.tools.cache"):new()
-            local input_called = false
-            vim.ui.input = function() input_called = true end
-            require("netman.providers.podman").internal._validate_container('', '', cache)
-            assert.is_true(input_called, "Podman did not reach out to user to start stopped container")
+            package.loaded['netman.providers.container'] = nil
+            package.loaded['netman.tools.cache'] = nil
+            original_shell = package.loaded['netman.tools.shell']
+            local container = require("netman.providers.container")
+            original_new_container = container.new
         end)
 
+        after_each(function()
+            if original_new_container then
+                require("netman.providers.container").new = original_new_container
+            end
+            package.loaded['netman.tools.shell'] = original_shell
+            package.loaded['netman.providers.podman'] = nil
+            package.loaded['netman.providers.container'] = nil
+        end)
+
+        it("should return uri and container when container is RUNNING", function()
+            local cache = require("netman.tools.cache"):new()
+            local container_mod = require("netman.providers.container")
+            local fake_container = {
+                name = 'somecontainer',
+                current_status = function() return container_mod.CONSTANTS.STATUS.RUNNING end
+            }
+            container_mod.new = function() return fake_container end
+
+            local result = require("netman.providers.podman").internal.validate("podman://somecontainer///somepath", cache)
+            assert.is_not_nil(result.uri, "validate did not return parsed uri")
+            assert.is_equal(fake_container, result.container, "validate did not return container")
+            assert.is_nil(result.message, "validate should not return message for running container")
+        end)
+
+        it("should short circuit container status when cache reports RUNNING", function()
+            package.loaded['netman.tools.shell'] = {
+                CONSTANTS = SHELL_CONSTANTS,
+                new = function() error("shell should not be called when status is cached RUNNING") end
+            }
+            package.loaded['netman.providers.container'] = nil
+            local container_mod = require("netman.providers.container")
+            local cache = require("netman.tools.cache"):new()
+            local container = container_mod:new("podman", "somecontainer", cache)
+            container.cache:add_item('status', 'RUNNING')
+            assert.is_equal(container_mod.CONSTANTS.STATUS.RUNNING, container:current_status(), "Container did not use cached RUNNING status")
+        end)
+
+        it("should return a start prompt message when container is not RUNNING", function()
+            local cache = require("netman.tools.cache"):new()
+            local container_mod = require("netman.providers.container")
+            local start_called = false
+            local fake_container = {
+                name = 'somecontainer',
+                current_status = function() return container_mod.CONSTANTS.STATUS.NOT_RUNNING end,
+                start = function() start_called = true; return { success = true } end
+            }
+            container_mod.new = function() return fake_container end
+
+            local result = require("netman.providers.podman").internal.validate("podman://somecontainer///somepath", cache)
+            assert.is_not_nil(result.message, "validate did not return prompt message for stopped container")
+            assert.is_equal('Y', result.message.default, "validate prompt default should be Y")
+            assert.is_function(result.message.callback, "validate prompt callback missing")
+
+            local ok = result.message.callback('Y')
+            assert.is_true(ok, "validate callback should return true when container starts")
+            assert.is_true(start_called, "validate callback did not start container")
+        end)
+
+        it("should not start container when user declines prompt", function()
+            local cache = require("netman.tools.cache"):new()
+            local container_mod = require("netman.providers.container")
+            local start_called = false
+            local fake_container = {
+                name = 'somecontainer',
+                current_status = function() return container_mod.CONSTANTS.STATUS.INVALID end,
+                start = function() start_called = true; return { success = true } end
+            }
+            container_mod.new = function() return fake_container end
+
+            local result = require("netman.providers.podman").internal.validate("podman://somecontainer///somepath", cache)
+            local ok = result.message.callback('n')
+            assert.is_false(ok, "validate callback should return false when user declines")
+            assert.is_false(start_called, "container should not start when user declines")
+        end)
     end)
 end)
