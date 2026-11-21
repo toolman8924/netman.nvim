@@ -332,19 +332,37 @@ describe("Netman Provider #docker", function()
             package.loaded['netman.tools.shell'] = nil
             package.loaded['netman.providers.docker'] = nil
         end)
-        it("should bail out on received exit code", function()
-            local _shell = {CONSTANTS = SHELL_CONSTANTS}
-            local _run = function(...) return {stderr = "", exit_code = 1, stdout = {""}} end
-            _shell.new = function(...) return {run = _run} end
-            package.loaded['netman.tools.shell'] = _shell
-            assert.is_false(require("netman.providers.docker").internal._read_file("somecontainer", "someremotefile", "somelocalfile"), "Docker failed to fail properly on invalid file read")
+        it("should return error details when container.get fails", function()
+            local uri = {
+                unique_name = 'somelocalfile',
+                to_string = function() return 'docker://somecontainer///someremotefile' end
+            }
+            local container = {
+                get = function(_, _, _)
+                    return { success = false, error = 'exit code 1' }
+                end
+            }
+            local result = require("netman.providers.docker").internal.read_file(uri, container)
+            assert.is_false(result.success, "Docker read_file should not succeed on container.get failure")
+            assert.is_not_nil(result.error, "Docker read_file should surface container.get error")
         end)
-        it("should not fail on successful read", function()
-            local _shell = {CONSTANTS = SHELL_CONSTANTS}
-            local _run = function(...) return {stderr = "", exit_code = 0, stdout = {""}} end
-            _shell.new = function(...) return {run = _run} end
-            package.loaded['netman.tools.shell'] = _shell
-            assert.is_true(require("netman.providers.docker").internal._read_file("somecontainer", "someremotefile", "somelocalfile"), "Docker failed to read file correctly")
+        it("should return file read data on successful container.get", function()
+            local uri = {
+                unique_name = 'somelocalfile',
+                to_string = function() return 'docker://somecontainer///someremotefile' end
+            }
+            local container = {
+                get = function(_, _, opts)
+                    assert.is_equal('somelocalfile', opts.new_file_name)
+                    return { success = true }
+                end
+            }
+            local result = require("netman.providers.docker").internal.read_file(uri, container)
+            local api = require("netman.tools.options").api
+            assert.is_true(result.success, "Docker read_file should succeed on successful container.get")
+            assert.is_equal(api.READ_TYPE.FILE, result.type, "Docker read_file should return FILE read type")
+            assert.is_truthy(result.data.local_path:match('somelocalfile$'), "Docker read_file should return local_path ending with unique_name")
+            assert.is_equal('docker://somecontainer///someremotefile', result.data.origin_path, "Docker read_file should return origin_path")
         end)
     end)
     describe("#_read_directory", function()

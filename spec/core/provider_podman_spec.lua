@@ -314,19 +314,37 @@ describe("Netman Provider #podman", function()
             package.loaded['netman.tools.shell'] = nil
             package.loaded['netman.providers.podman'] = nil
         end)
-        it("should bail out on received exit code", function()
-            local _shell = {CONSTANTS = SHELL_CONSTANTS}
-            local _run = function(...) return {stderr = "", exit_code = 1, stdout = {""}} end
-            _shell.new = function(...) return {run = _run} end
-            package.loaded['netman.tools.shell'] = _shell
-            assert.is_false(require("netman.providers.podman").internal._read_file("somecontainer", "someremotefile", "somelocalfile"), "Podman failed to fail properly on invalid file read")
+        it("should return error details when container.get fails", function()
+            local uri = {
+                unique_name = 'somelocalfile',
+                to_string = function() return 'podman://somecontainer///someremotefile' end
+            }
+            local container = {
+                get = function(_, _, _)
+                    return { success = false, error = 'exit code 1' }
+                end
+            }
+            local result = require("netman.providers.podman").internal.read_file(uri, container)
+            assert.is_false(result.success, "Podman read_file should not succeed on container.get failure")
+            assert.is_not_nil(result.error, "Podman read_file should surface container.get error")
         end)
-        it("should not fail on successful read", function()
-            local _shell = {CONSTANTS = SHELL_CONSTANTS}
-            local _run = function(...) return {stderr = "", exit_code = 0, stdout = {""}} end
-            _shell.new = function(...) return {run = _run} end
-            package.loaded['netman.tools.shell'] = _shell
-            assert.is_true(require("netman.providers.podman").internal._read_file("somecontainer", "someremotefile", "somelocalfile"), "Podman failed to read file correctly")
+        it("should return file read data on successful container.get", function()
+            local uri = {
+                unique_name = 'somelocalfile',
+                to_string = function() return 'podman://somecontainer///someremotefile' end
+            }
+            local container = {
+                get = function(_, _, opts)
+                    assert.is_equal('somelocalfile', opts.new_file_name)
+                    return { success = true }
+                end
+            }
+            local result = require("netman.providers.podman").internal.read_file(uri, container)
+            local api = require("netman.tools.options").api
+            assert.is_true(result.success, "Podman read_file should succeed on successful container.get")
+            assert.is_equal(api.READ_TYPE.FILE, result.type, "Podman read_file should return FILE read type")
+            assert.is_truthy(result.data.local_path:match('somelocalfile$'), "Podman read_file should return local_path ending with unique_name")
+            assert.is_equal('podman://somecontainer///someremotefile', result.data.origin_path, "Podman read_file should return origin_path")
         end)
     end)
     describe("#_read_directory", function()
