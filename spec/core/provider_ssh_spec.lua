@@ -139,27 +139,118 @@ describe("Netman Provider #ssh", function()
     end)
 
     describe("#find", function()
-        pending("should properly read a valid find result from a file")
-        pending("should properly read a valid find result from an empty file")
-        pending("should properly read a valid find result from a directory")
-        pending("should properly read a valid find result with absolute path name")
+        it("should return stdout from run_command on success", function()
+            local ssh = require("netman.providers.ssh").internal.SSH
+            local host = {
+                run_command = function(_, cmd, _)
+                    assert.is_truthy(cmd:match("^find /tmp"))
+                    return { exit_code = 0, stdout = "/tmp/a\n/tmp/b\n", stderr = "" }
+                end
+            }
+            local result = ssh.find(host, "/tmp")
+            assert.is_equal("/tmp/a\n/tmp/b\n", result)
+        end)
+        it("should return error details on non-zero exit code", function()
+            local ssh = require("netman.providers.ssh").internal.SSH
+            local host = {
+                run_command = function()
+                    return { exit_code = 1, stdout = "", stderr = "find failed" }
+                end
+            }
+            local result = ssh.find(host, "/tmp")
+            assert.is_equal("find failed", result.error)
+        end)
+        it("should pass async option through to run_command", function()
+            local ssh = require("netman.providers.ssh").internal.SSH
+            local handle = { id = "handle" }
+            local host = {
+                run_command = function(_, _, opts)
+                    return opts[require("netman.tools.shell").CONSTANTS.FLAGS.ASYNC] and handle or { exit_code = 0, stdout = "" }
+                end
+            }
+            local result = ssh.find(host, "/tmp", { async = true })
+            assert.are.same(handle, result)
+        end)
     end)
 
     describe("#validate", function()
-        pending("should quick escape if there is already a cached result for the uri provided")
-        pending("should not do anything if there is an invalid uri")
-        pending("should create the cache for the uri")
+        local cache
+        before_each(function()
+            cache = require("netman.tools.cache"):new()
+            package.loaded['netman.providers.ssh'] = nil
+        end)
+        after_each(function()
+            cache:clear()
+        end)
+        it("should assert if no cache is provided", function()
+            local ssh = require("netman.providers.ssh")
+            assert.has_error(function()
+                ssh.internal.validate("ssh://host///file", nil)
+            end)
+        end)
+        it("should return uri and host for a valid uri", function()
+            local ssh = require("netman.providers.ssh")
+            local orig_new = ssh.internal.SSH.new
+            local fake_host = { host = "host" }
+            ssh.internal.SSH.new = function() return fake_host end
+            local result = ssh.internal.validate("ssh://host///file", cache)
+            ssh.internal.SSH.new = orig_new
+            assert.is_not_nil(result.uri)
+            assert.are.equal(fake_host, result.host)
+        end)
     end)
 
     describe("#read_file", function()
-        pending("should complain if you aren't using sftp or scp protocol")
-        pending("should include the port in the generated command")
-        pending("should properly handle relative pathing")
-        pending("should properly handle absolute pathing")
-        pending("should complain if a non-0 exit code is provided")
-        pending("should prompt to create missing file #debug")
-        pending("should create the missing file #debug")
-        pending("should not create the missing file #debug")
+        before_each(function()
+            package.loaded['netman.providers.ssh'] = nil
+        end)
+        it("should return file read data on successful get", function()
+            local ssh = require("netman.providers.ssh")
+            local uri = {
+                unique_name = "localfile",
+                to_string = function() return "ssh://host///remotefile" end
+            }
+            local host = {
+                get = function(_, _, _, opts)
+                    assert.is_equal("localfile", opts.new_file_name)
+                    return { success = true }
+                end
+            }
+            local result = ssh.internal.read_file(uri, host)
+            assert.is_true(result.success)
+            assert.is_not_nil(result.data.local_path)
+        end)
+        it("should return permission error on permission denied", function()
+            local ssh = require("netman.providers.ssh")
+            local uri = {
+                unique_name = "localfile",
+                to_string = function() return "ssh://host///remotefile" end
+            }
+            local host = {
+                get = function()
+                    return { success = false, error = "Permission denied" }
+                end
+            }
+            local result = ssh.internal.read_file(uri, host)
+            assert.is_false(result.success)
+            assert.is_equal(require("netman.tools.options").api.ERRORS.PERMISSION_ERROR, result.message.error)
+        end)
+        it("should return async handle when callback is provided", function()
+            local ssh = require("netman.providers.ssh")
+            local uri = {
+                unique_name = "localfile",
+                to_string = function() return "ssh://host///remotefile" end
+            }
+            local handle = { id = "handle" }
+            local host = {
+                get = function(_, _, _, opts)
+                    assert.is_true(opts.async)
+                    return handle
+                end
+            }
+            local result = ssh.internal.read_file(uri, host, function() end)
+            assert.are.same(handle, result.handle)
+        end)
     end)
 
     describe("#read_directory", function() end)
