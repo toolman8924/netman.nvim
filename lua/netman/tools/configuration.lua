@@ -55,6 +55,7 @@ end
 --- this will _not_ error as Netman's API sets a save function on each
 --- configuration
 function Configuration:save()
+    local _ = self
     error("Not Implemented!")
 end
 

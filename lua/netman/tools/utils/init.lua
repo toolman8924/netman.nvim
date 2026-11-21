@@ -62,7 +62,6 @@ local function serialize_self()
 end
 
 local function load_self()
-    local _file = string.format("%s%s", M.tmp_dir, M.pid)
     local handle = io.open(M.tmp_dir .. M.pid, 'r')
     -- Probably want to verify this?
     if not handle then return nil end
@@ -164,14 +163,13 @@ end
 
 function M.is_process_alive(pid)
     local command_flags = require("netman.tools.shell").CONSTANTS.FLAGS
-    local command = {}
-    local check_output = nil
+    local command
+    local check_output
     if M.os == 'windows' then
         command = {'wmic', 'process', 'where', string.format("ProcessID = %s", pid), 'get', 'processid'}
         check_output = function(output)
             local stdout = output.stdout
             local stderr = output.stderr
-            local has_error = stderr and stderr:len() > 0
             if
                 (stderr and stderr:len() > 0)
                 or not stdout
@@ -191,7 +189,7 @@ function M.is_process_alive(pid)
             return true
         end
     end
-    
+
     local command_options = {}
     command_options[command_flags.STDOUT_JOIN] = ''
     command_options[command_flags.STDERR_JOIN] = ''

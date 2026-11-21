@@ -1,5 +1,4 @@
 --This file should contain all commands meant to be used by mappings.
-local input = require("neo-tree.ui.inputs")
 local cc = require("neo-tree.sources.common.commands")
 local ui = require("netman.ui.neo-tree")
 local M = {}
@@ -44,13 +43,13 @@ M.delete = function(state, callback)
     do_callback(callback)
 end
 
-M.yank_node = function(state, callback)
+M.yank_node = function(_state, callback)
     ui.set_mark_action('copy')
     -- TODO: Add copying the node(s) names to a register?
     do_callback(callback)
 end
 
-M.move_node = function(state, callback)
+M.move_node = function(_state, callback)
     ui.set_mark_action('move')
     do_callback(callback)
 end
@@ -102,7 +101,7 @@ end
 --
 -- -- TODO:
 -- M.split_with_window_picker = function(state, callback)
---     
+--
 -- end
 --
 -- -- TODO:
@@ -193,7 +192,7 @@ end
 --     require("netman.ui.neo-tree").favorite_toggle(internal_node.provider, internal_node.host)
 --     if callback and type(callback) == 'function' then callback() end
 -- end
---  
+--
 -- -- TODO:
 -- M.toggle_hidden = function(state, callback)
 --     local tree = state.tree

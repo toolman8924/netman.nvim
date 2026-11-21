@@ -10,12 +10,9 @@
 --    text:      The text to display for this item.
 --    highlight: The highlight group to apply to this text.
 
-local highlights = require("neo-tree.ui.highlights")
 local common = require("neo-tree.sources.common.components")
-local netman = require("netman.ui.neo-tree")
 local netman_host_states = require("netman.tools.options").ui.STATES
-local log = require("netman.tools.utils").log
-local icon_map = function(item) return '' end
+local icon_map = function(_item) return '' end
 local success, web_devicons = pcall(require, "nvim-web-devicons")
 if success then
     icon_map = web_devicons.get_icon
@@ -36,7 +33,7 @@ M.internal.state_map = {
     [netman_host_states.REFRESHING] = {text=M.internal.refresh_icon, highlight=""}
 }
 
-M.action = function(config, node, state)
+M.action = function(_config, node, _state)
     local _icon = { text = '', highlight = '' }
     local entry = node.extra
     if not entry then return end
@@ -44,7 +41,7 @@ M.action = function(config, node, state)
     return _icon
 end
 
-M.marked = function(config, node, state)
+M.marked = function(_config, node, _state)
     local _icon = { text = '', highlight = '' }
     local entry = node.extra
     if not entry or not (entry.markable and entry.marked) then
@@ -54,7 +51,7 @@ M.marked = function(config, node, state)
     return _icon
 end
 
-M.expanded = function(config, node, state)
+M.expanded = function(_config, node, _state)
     local _icon = nil
     if node:is_expanded() then
         _icon = { text = '', highlight = '' }
@@ -82,7 +79,7 @@ M.icon = function(config, node, state)
     return _icon
 end
 
-M.state = function(config, node, state)
+M.state = function(_config, node, _state)
     local icon = "  "
     local highlight = nil
     local entry = node.extra
@@ -92,10 +89,10 @@ M.state = function(config, node, state)
             highlight = highlight
         }
     end
-    local _state = M.internal.state_map[entry.state]
-    if _state then
-        icon = _state.text
-        highlight = _state.highlight
+    local state_info = M.internal.state_map[entry.state]
+    if state_info then
+        icon = state_info.text
+        highlight = state_info.highlight
     end
     icon = string.format("%s", icon)
     return {

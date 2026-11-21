@@ -16,12 +16,14 @@ if status == nil or status == false then
     error("Unable to run bootstrapper without luv. Please install luv!", 2)
 end
 
-local status, inspect = pcall(require, "inspect")
+local inspect
+status, inspect = pcall(require, "inspect")
 if status == nil or status == false then
     error("Unable to run boostrapper without inspect. Please install inspect!", 2)
 end
 
-local status, json = pcall(require, "JSON")
+local json
+status, json = pcall(require, "JSON")
 if status == nil or status == false then
     error("Unable to run bootstrapper without json. Please install json", 2)
 end
@@ -79,7 +81,7 @@ local print = function(...)
         _G.print(...)
     end
 end
-local shell_escape_pattern = [[([%s^&*()%]="'+.|,<>?%[{}%\])]]
+local _ = [[([%s^&*()%]="'+.|,<>?%[{}%\])]]
 _G.vim = { g = {}, inspect=inspect, loop=luv }
 _G.vim.fn = {}
 _G.vim.ui = {}
@@ -100,7 +102,7 @@ _G.vim.log = {
 -- Will create subchildren if "path" == "p" (see :help mkdir in vim for details)
 -- prot is unused currently, maybe we will implement how its used in neovim mkdir but
 -- for now I dont care enough. Deal with it
-function _G.vim.fn.mkdir(name, path, prot)
+function _G.vim.fn.mkdir(name, path, _prot)
     local args = {}
     if path == "p" then table.insert(args, "-p") end
     -- name = name:gsub(shell_escape_pattern, "\\" .. "%1")
@@ -112,13 +114,13 @@ function _G.vim.fn.mkdir(name, path, prot)
     local _stderr = {}
 
     local handle = nil
-    
+
     local command_options = {
         args = args,
         stdio = {nil, stdout, stderr},
         hide = true
     }
-    handle, _ = luv.spawn("mkdir", command_options, function(exit_code, exit_signal)
+    handle = luv.spawn("mkdir", command_options, function(exit_code, exit_signal)
         if #_stdout > 0 then print(table.concat(_stdout, "")) end
         handle:close()
         stdout:close()
@@ -187,14 +189,14 @@ function _G.vim.fn.getpid()
     return luv.os_getppid()
 end
 
-function _G.vim.fn.delete(path, opts)
+function _G.vim.fn.delete(_path, _opts)
     -- TODO: Mike: we should probably implement this sometime but there is no easy way
     -- to recursively delete the contents of a directory and I'm lazy
 end
 
 -- Prints to screen your message instead of notifying the user via
 -- vim's notification modal. Ya know, since we aren't in vim anymore
-function _G.vim.api.nvim_notify(message, level, opts)
+function _G.vim.api.nvim_notify(message, level, _opts)
     print("Notify --- [" .. level .. "]: " .. message)
 end
 
@@ -204,7 +206,7 @@ function _G.vim.api.nvim_command(command)
 end
 
 -- Returns an empty array. This is _basically_ a stub function
-function _G.vim.api.buf_get_lines(buffer_index, start_line, end_line, strict_indexing)
+function _G.vim.api.buf_get_lines(_buffer_index, _start_line, _end_line, _strict_indexing)
     return {}
 end
 
@@ -292,6 +294,6 @@ end
 
 local looper = vim.loop.new_timer()
 local rerun_uv = function()
-    uv.run('nowait')
+    luv.run('nowait')
 end
 looper:start(0, 10, rerun_uv)

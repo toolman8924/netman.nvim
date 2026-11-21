@@ -2,16 +2,14 @@
 
 -- Planning ahead for if/when Neovim deprecates this :/
 local unpack = unpack
-local uv     = nil
-local mkdir  = nil
-local delete = nil
+local uv, mkdir, delete
 local os =
     vim.loop.os_uname().sysname:lower():match('windows') and 'windows'
     or vim.loop.os_uname().sysname:lower():match('linux') and 'linux'
     or vim.loop.os_uname().sysname:lower():match('darwin') and 'macos'
 
 local sep = os == 'windows' and '\\' or '/' -- \ for windows, mac and linux both use \
-if table.unpack then unpack = table.unpack else table.unpack = unpack end
+if table.unpack then unpack = table.unpack else rawset(table, 'unpack', unpack) end
 if vim and vim.loop then
     uv = vim.loop
 else
@@ -48,7 +46,7 @@ else
         -- Compatibility with vim.fn.mkdir
         if not success then return 0 else return 1 end
     end
-    delete = function(name, flags)
+    delete = function(_name, _flags)
 
     end
 end
