@@ -116,7 +116,7 @@ function M.internal.read_directory(uri, container)
     local children = M.internal.find(uri, container, {max_depth = 1})
     if not children.success then
         -- Something happened during find.
-        if children.error:match('[pP]ermission%s+[dD]enied') then
+        if children.message and children.message:match('[pP]ermission%s+[dD]enied') then
             return {
                 success = false,
                 message = {
@@ -127,7 +127,7 @@ function M.internal.read_directory(uri, container)
         -- Handle other errors as we find them
         return {
             success = false,
-            message = children.error
+            message = children.message
         }
     end
     return {
