@@ -6,7 +6,6 @@ local describe = require('busted').describe
 local it = require('busted').it
 local before_each = require("busted").before_each
 local after_each = require("busted").after_each
-local pending = require("busted").pending
 
 describe("Netman Provider #ssh", function()
     describe("#init", function()
@@ -124,7 +123,14 @@ describe("Netman Provider #ssh", function()
             assert.is_equal(api.ATTRIBUTES.FILE, uri.type)
             assert.is_equal(api.READ_TYPE.FILE, uri.return_type)
         end)
-        pending("should get the parent directory correct")
+        it("should get the parent directory correct", function()
+            local api = require("netman.tools.options").api
+            local uri = require("netman.providers.ssh").internal.URI:new("sftp://somehost///a/b/c.txt", cache)
+            local parent = uri:parent()
+            assert.is_equal("ssh://somehost///a/b/", parent:to_string('remote'))
+            assert.is_equal(api.ATTRIBUTES.DIRECTORY, parent.type)
+            assert.is_equal("/a/b", parent.__path_as_string)
+        end)
         it("should generate a proper auth uri", function ()
             local ssh = require("netman.providers.ssh").internal
             local uri1 = ssh.URI:new("sftp://somehost/", cache)
