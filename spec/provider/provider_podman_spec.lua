@@ -1,5 +1,6 @@
 _G._QUIET = true -- This makes bootstrap shut up
 vim.g.netman_log_level = 0
+local SHELL_CONSTANTS = require("netman.tools.shell").CONSTANTS
 
 local describe = require("busted").describe
 local it = require("busted").it
@@ -16,6 +17,7 @@ describe("Netman Provider #podman", function()
         end)
         it("should complain if podman isn't available for use", function()
             local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function() return
                     {
                         run = function()
@@ -33,6 +35,7 @@ describe("Netman Provider #podman", function()
         end)
         it("should be happy if podman is available for use", function ()
              local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function() return
                     {
                         run = function()
@@ -249,28 +252,28 @@ describe("Netman Provider #podman", function()
             package.loaded['netman.tools.shell'] = nil
         end)
         it("should complain on podman non-0 exit code", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 1, stdout = "we dun failed"} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
             assert.is_equal('ERROR', require("netman.providers.podman").internal._is_container_running('somecontainer'), "Podman failed to fail properly")
         end)
         it("should return invalid on nonexistent container", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = {"STATUS"}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
             assert.is_equal('INVALID', require("netman.providers.podman").internal._is_container_running('somecontainer'), "Podman failed register container search as invalid")
         end)
         it("should return not running on not running container", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = {"STATUS", ""}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
             assert.is_equal('NOT_RUNNING', require("netman.providers.podman").internal._is_container_running('somecontainer'), "Podman failed register container as not running")
         end)
         it("should return running on valid running container", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = {"STATUS", 'Up 2 hours'}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -283,14 +286,14 @@ describe("Netman Provider #podman", function()
             package.loaded['netman.providers.podman'] = nil
         end)
         it("should return false if an exit code is returned by podman", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 1, stdout = {""}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
             assert.is_false(require("netman.providers.podman").internal._start_container("somecontainer"), "Podman failed to fail on startup properly")
         end)
         it("should return true if podman was able to start the requested container", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = {""}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -298,7 +301,7 @@ describe("Netman Provider #podman", function()
             assert.is_true(require("netman.providers.podman").internal._start_container("somecontainer"), "Podman failed to start container properly")
         end)
         it("should return true if podman was able to start the requested container", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = {""}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -312,14 +315,14 @@ describe("Netman Provider #podman", function()
             package.loaded['netman.providers.podman'] = nil
         end)
         it("should bail out on received exit code", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 1, stdout = {""}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
             assert.is_false(require("netman.providers.podman").internal._read_file("somecontainer", "someremotefile", "somelocalfile"), "Podman failed to fail properly on invalid file read")
         end)
         it("should not fail on successful read", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = {""}} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -349,7 +352,7 @@ describe("Netman Provider #podman", function()
             local cache = require("netman.tools.cache"):new()
             cache:add_item('files', require("netman.tools.cache"):new())
             cache:add_item('file_metadata', require("netman.tools.cache"):new())
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 1, stdout = ""} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -373,7 +376,7 @@ describe("Netman Provider #podman", function()
             vim.loop.fs_close = _fs_close
         end)
         it("should bail out on received exit code", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 1, stdout = ""} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -383,7 +386,7 @@ describe("Netman Provider #podman", function()
             assert.is_false(require("netman.providers.podman").internal._write_file({}, {}), "Podman failed to fail properly on broken write request")
         end)
         it("should return true on successful write of file", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = ""} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
@@ -399,14 +402,14 @@ describe("Netman Provider #podman", function()
             package.loaded['netman.providers.podman'] = nil
         end)
         it("should bail out on received exit code", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 1, stdout = ""} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell
             assert.is_false(require("netman.providers.podman").internal._create_directory("somecontainer", "somepath"), "Podman failed to fail properly on broken create directory request")
         end)
         it("should return true on successful write of file", function()
-            local _shell = {}
+            local _shell = {CONSTANTS = SHELL_CONSTANTS}
             local _run = function(...) return {stderr = "", exit_code = 0, stdout = ""} end
             _shell.new = function(...) return {run = _run} end
             package.loaded['netman.tools.shell'] = _shell

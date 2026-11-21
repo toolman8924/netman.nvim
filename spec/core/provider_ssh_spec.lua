@@ -1,5 +1,6 @@
 _G._QUIET = true -- This makes bootstrap shut up
 vim.g.netman_log_level = 0
+local SHELL_CONSTANTS = require("netman.tools.shell").CONSTANTS
 
 local spy = require("luassert.spy")
 local describe = require('busted').describe
@@ -17,6 +18,7 @@ describe("Netman Provider #ssh", function()
         end)
         it("should complain if ssh isn't available for use", function()
             local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function() return
                     {
                         run = function()
@@ -34,6 +36,7 @@ describe("Netman Provider #ssh", function()
         end)
         it("should be happy if ssh is available for use", function ()
              local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function() return
                     {
                         run = function()
@@ -296,6 +299,7 @@ describe("Netman Provider #ssh", function()
             local port = "1111"
             local matching_command = false
             local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function(_, command)
                     local matching_port1 = string.format('--port=%s', port)
                     local found_port = false
@@ -343,6 +347,7 @@ describe("Netman Provider #ssh", function()
             local path = "/somefile.txt"
             local matching_command = false
             local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function(_, command)
                     for _, item in ipairs(command) do
                         if item and item:match('%./somefile%.txt') then
@@ -382,6 +387,7 @@ describe("Netman Provider #ssh", function()
             local path = "/somefile.txt"
             local matching_command = false
             local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function(_, command)
                     for _, item in ipairs(command) do
                         if item and item:match('/somefile%.txt') and not item:match("%./somefile%.txt") then
@@ -420,6 +426,7 @@ describe("Netman Provider #ssh", function()
         it("should complain if a non-0 exit code is provided", function()
             local path = "/somefile.txt"
             local shell = {
+                CONSTANTS = SHELL_CONSTANTS,
                 new = function()
                     return {
                         run = function()
