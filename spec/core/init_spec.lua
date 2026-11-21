@@ -54,7 +54,17 @@ describe('Netman init #netman_init', function()
         it("should throw an error if no uri is able to be found", function()
             local _error = nil
             vim.fn.expand = function(_) end
-            require("netman.tools.utils").logger.errorn = function(_) _error = _ end
+            require("netman.api").get_system_logger = function()
+                return {
+                    errorn = function(_) _error = _ end,
+                    warnn = function() end,
+                    info = function() end,
+                    trace = function() end,
+                    infon = function() end,
+                    warnf = function() end,
+                    error = function() end,
+                }
+            end
             require("netman").write()
             assert.is_not_nil(_error, "Write did not throw an error on invalid uri")
         end)
@@ -67,21 +77,41 @@ describe('Netman init #netman_init', function()
             assert.is_not_false(was_called, "Write did not reach out to API")
         end)
         it("should set the buffer to be \"nomodified\"", function()
-            local command = nil
-            local expected_command = "sil! set nomodified"
+            local commands = {}
+            local _defer = vim.defer_fn
+            local _nvim_command = vim.api.nvim_command
+            vim.defer_fn = function(fn, _) fn() end
             vim.fn.expand = function(_) return 'dummy-file' end
             vim.fn.bufnr = function(_) return 0 end
-            vim.api.nvim_command = function(_) command = _ end
-            require("netman.api").write = function() end
+            vim.api.nvim_command = function(_) table.insert(commands, _) end
+            require("netman.api").write = function(_, _, _, cb)
+                if cb then cb({ success = true }) end
+            end
             require("netman").write()
-            assert.is_equal(expected_command, command, "Write did not set the buffer to the approriate modified state")
+            vim.defer_fn = _defer
+            vim.api.nvim_command = _nvim_command
+            local found = false
+            for _, cmd in ipairs(commands) do
+                if cmd == "sil! set nomodified" then found = true end
+            end
+            assert.is_true(found, "Write did not set the buffer to the approriate modified state")
         end)
     end)
     describe('#delete', function()
         it("should warn and do nothing on no uri", function()
             local warn_called = false
             local api_called = false
-            require("netman.tools.utils").logger.warnn = function(_) warn_called = true end
+            require("netman.api").get_system_logger = function()
+                return {
+                    warnn = function(_) warn_called = true end,
+                    errorn = function() end,
+                    info = function() end,
+                    trace = function() end,
+                    infon = function() end,
+                    warnf = function() end,
+                    error = function() end,
+                }
+            end
             require("netman.api").delete = function(_) api_called = true end
             require("netman").delete()
             assert.is_not_false(warn_called, "Delete did not warn on invalid uri")
@@ -107,11 +137,11 @@ describe('Netman init #netman_init', function()
             local required_commands = {
                 NmloadProvider = 0,
                 NmunloadProvider = 0,
+                NmreloadProvider = 0,
                 Nmlogs = 0,
                 Nmdelete = 0,
                 Nmread = 0,
                 Nmwrite = 0,
-                Nmbrowse = 0
             }
             vim.api.nvim_command = function(_)
                 for command, state in pairs(required_commands) do
@@ -131,11 +161,8 @@ describe('Netman init #netman_init', function()
         it("should expose api", function()
             assert.is_not_nil(netman.api, "Netman init didn't expose API")
         end)
-        it("should expose log", function()
-            assert.is_not_nil(netman.log, "Netman init didn't expose log")
-        end)
-        it("should expose notify", function()
-            assert.is_not_nil(netman.notify, "Netman init didn't expose notify")
+        it("should expose logger", function()
+            assert.is_not_nil(netman.logger, "Netman init didn't expose logger")
         end)
         it("should expose utils", function()
             assert.is_not_nil(netman.utils, "Netman init didn't expose utils")
