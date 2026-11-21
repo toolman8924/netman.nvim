@@ -6,7 +6,6 @@ local describe = require('busted').describe
 local it = require('busted').it
 local before_each = require("busted").before_each
 local after_each = require("busted").after_each
-local pending = require("busted").pending
 
 describe("Netman API #netman-api", function()
     before_each(function()
@@ -114,7 +113,7 @@ describe("Netman API #netman-api", function()
             local api = require("netman.api")
             local logger = api.get_system_logger()
             local _errorn = logger.errorn
-            logger.errorn = function(...) called = true end
+            logger.errorn = function() called = true end
             api.load_provider("non-existent-provider")
             logger.errorn = _errorn
             assert.is_true(called)
@@ -126,7 +125,7 @@ describe("Netman API #netman-api", function()
             local api = require("netman.api")
             local logger = api.get_system_logger()
             local _errorn = logger.errorn
-            logger.errorn = function(...) count = count + 1 end
+            logger.errorn = function() count = count + 1 end
             api.load_provider('dummy.provider.1')
             api.load_provider('dummy.provider.2')
             logger.errorn = _errorn
@@ -138,7 +137,7 @@ describe("Netman API #netman-api", function()
             local api = require("netman.api")
             for index, _ in ipairs(required_attrs) do
                 for _, attr in ipairs({table.unpack(required_attrs, 1, index)}) do
-                    local val = nil
+                    local val
                     if attr == 'name' then val = "dummy_provider"
                     elseif attr == 'version' then val = '0.0'
                     elseif attr == 'protocol_patterns' then val = {'jankuri'}
@@ -159,7 +158,7 @@ describe("Netman API #netman-api", function()
             local dummy_provider = {}
             for index, _ in ipairs(required_attrs) do
                 for _, attr in ipairs({table.unpack(required_attrs, 1, index)}) do
-                    local val = nil
+                    local val
                     if attr == 'name' then val = "dummy_provider"
                     elseif attr == 'version' then val = '0.0'
                     elseif attr == 'protocol_patterns' then val = {'jankuri'}
@@ -207,7 +206,7 @@ describe("Netman API #netman-api", function()
             local dummy_provider2 = {}
             for index, _ in ipairs(required_attrs) do
                 for _, attr in ipairs({table.unpack(required_attrs, 1, index)}) do
-                    local val = nil
+                    local val
                     if attr == 'name' then val = "dummy_provider"
                     elseif attr == 'version' then val = '0.0'
                     elseif attr == 'protocol_patterns' then val = {'jankuri'}
@@ -238,7 +237,7 @@ describe("Netman API #netman-api", function()
             local dummy_provider2 = {}
             for index, _ in ipairs(required_attrs) do
                 for _, attr in ipairs({table.unpack(required_attrs, 1, index)}) do
-                    local val = nil
+                    local val
                     if attr == 'name' then val = "dummy_provider"
                     elseif attr == 'version' then val = '0.0'
                     elseif attr == 'protocol_patterns' then val = {'jankuri'}
@@ -305,9 +304,29 @@ describe("Netman API #netman-api", function()
     end)
     describe("#unload_buffer", function()
         before_each(function()
-        -- "Load" a provider and uri into memory to verify that things work as expected
+            package.loaded['netman.api'] = nil
         end)
-        pending("should call \"close_connection\" on an associated provider after buffer is closed", function()
+        it("should call close_connection on an associated provider", function()
+            local api = require("netman.api")
+            local called = false
+            local closed_uri = nil
+            local provider = {
+                close_connection = function(uri, _)
+                    called = true
+                    closed_uri = uri
+                end
+            }
+            api._providers.file_cache['test://file'] = '/tmp/netman-test-file'
+            api.internal.get_provider_for_uri = function(_)
+                return provider, {}
+            end
+            local _fs_stat = vim.loop.fs_stat
+            vim.loop.fs_stat = function(_) return nil end
+            api.unload_buffer('test://file')
+            vim.loop.fs_stat = _fs_stat
+            assert.is_true(called, "close_connection was not called")
+            assert.is_equal('test://file', closed_uri)
+            assert.is_nil(api._providers.file_cache['test://file'])
         end)
     end)
     -- api.read
@@ -315,25 +334,70 @@ describe("Netman API #netman-api", function()
         local api = nil
         local api_options = require("netman.tools.options").api
         local provider = nil
+        local cache = nil
         before_each(function()
             api = require("netman.api")
-            provider = nil
-            api.internal.validate_uri = function(uri) return uri, provider end
+            provider = { name = 'mock_provider' }
+            cache = {}
+            api.internal.validate_uri = function(uri) return uri, provider, cache end
         end)
         after_each(function()
             package.loaded['netman.api'] = nil
         end)
-        pending("read contract changed - update to current api.read/provider response behavior")
-        pending("read contract changed - invalid read type")
-        pending("read contract changed - no data returned")
-        pending("read contract changed - stream type")
-        pending("read contract changed - file type")
-        pending("read contract changed - explore type")
+        it("should return response as-is when provider returns invalid read type", function()
+            provider.read = function()
+                return { success = true, data = "data", type = "INVALID" }
+            end
+            local result = api.read('test://file')
+            assert.is_true(result.success)
+            assert.is_equal("INVALID", result.type)
+            assert.is_equal("data", result.data)
+        end)
+        it("should return response when no data was returned by provider", function()
+            provider.read = function()
+                return { success = false, message = { message = "no data" } }
+            end
+            local result = api.read('test://file')
+            assert.is_false(result.success)
+        end)
+        it("should return stream data when provider returns STREAM", function()
+            provider.read = function()
+                return { success = true, data = { "line1", "line2" }, type = api_options.READ_TYPE.STREAM }
+            end
+            local result = api.read('test://file')
+            assert.is_true(result.success)
+            assert.is_equal(api_options.READ_TYPE.STREAM, result.type)
+            assert.are.same({ "line1", "line2" }, result.data)
+        end)
+        it("should return file data when provider returns FILE", function()
+            provider.read = function()
+                return {
+                    success = true,
+                    data = { local_path = "/tmp/local", origin_path = "test://file" },
+                    type = api_options.READ_TYPE.FILE
+                }
+            end
+            local result = api.read('test://file')
+            assert.is_true(result.success)
+            assert.is_equal(api_options.READ_TYPE.FILE, result.type)
+            assert.is_equal("/tmp/local", result.data.local_path)
+        end)
+        it("should return explore data when provider returns EXPLORE", function()
+            local explore_data = { remote_files = {}, parent = "test://", origin_path = "test://dir" }
+            api.internal.sanitize_explore_data = function(data) return data end
+            provider.read = function()
+                return { success = true, data = explore_data, type = api_options.READ_TYPE.EXPLORE }
+            end
+            local result = api.read('test://dir')
+            assert.is_true(result.success)
+            assert.is_equal(api_options.READ_TYPE.EXPLORE, result.type)
+            assert.are.same(explore_data, result.data)
+        end)
     end)
     -- api.write
     describe('#write', function()
         -- Figure out a way to verify that an action is happening asychronously?
-        -- A reasonable way to do this would be to have our provider's 
+        -- A reasonable way to do this would be to have our provider's
         -- "write" function do a sleep for some (very short) amount of time.
         -- Anything longer than nothing would mean that it should still be running
         -- when api.write finishes and thus we can verify that it is asynchronous.
@@ -355,8 +419,19 @@ describe("Netman API #netman-api", function()
             vim.api.nvim_buf_get_lines = _nvim_buf_get_lines
             package.loaded['netman.api'] = nil
         end)
-        pending("should call write asynchronously", function()
-
+        it("should call write asynchronously when callback is provided", function()
+            local ran = false
+            local handle = { handle = { stop = function() end } }
+            provider = {
+                name = 'mock_provider',
+                write_a = function()
+                    ran = true
+                    return handle
+                end
+            }
+            local result = api.write(0, 'test://file', nil, function() end)
+            assert.is_true(ran, "Write did not call provider's async write function")
+            assert.is_not_nil(result)
         end)
         it("should call the provider's write function", function()
             local ran = false
@@ -377,7 +452,7 @@ describe("Netman API #netman-api", function()
     -- api.delete
     describe('#delete', function()
         -- Figure out a way to verify that an action is happening asychronously?
-        -- A reasonable way to do this would be to have our provider's 
+        -- A reasonable way to do this would be to have our provider's
         -- "delete" function do a sleep for some (very short) amount of time.
         -- Anything longer than nothing would mean that it should still be running
         -- when api.delete finishes and thus we can verify that it is asynchronous.
@@ -393,8 +468,19 @@ describe("Netman API #netman-api", function()
         after_each(function()
             package.loaded['netman.api'] = nil
         end)
-        pending("should call delete asychronously", function()
-        
+        it("should call delete asynchronously when callback is provided", function()
+            local ran = false
+            local handle = { handle = { stop = function() end } }
+            provider = {
+                name = 'mock_provider',
+                delete_a = function()
+                    ran = true
+                    return handle
+                end
+            }
+            local result = api.delete('test://file', function() end)
+            assert.is_true(ran, "Delete did not call provider's async delete function")
+            assert.is_not_nil(result)
         end)
         it("should call the provider's delete function", function()
             local ran = false
