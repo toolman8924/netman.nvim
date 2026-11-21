@@ -1,2 +1,0 @@
--- Needs test to ensure that having multiple remote URIs open still saves the
--- proper code to the proper uri
