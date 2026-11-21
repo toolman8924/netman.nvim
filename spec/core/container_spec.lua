@@ -180,7 +180,7 @@ describe("Netman Container", function()
         local function make_container(run_fn, status)
             package.loaded['netman.tools.shell'] = {
                 CONSTANTS = SHELL_CONSTANTS,
-                new = function(_, cmd, opts)
+                new = function(_, _cmd, opts)
                     return {
                         run = function()
                             local result = run_fn()
@@ -239,7 +239,7 @@ describe("Netman Container", function()
         it("should return success=false when cp command fails", function()
             package.loaded['netman.tools.shell'] = {
                 CONSTANTS = SHELL_CONSTANTS,
-                new = function(_, cmd, opts)
+                new = function(_, _cmd, opts)
                     return {
                         run = function()
                             local result = { exit_code = 1, stderr = "cp failed", stdout = "" }
@@ -266,7 +266,7 @@ describe("Netman Container", function()
         it("should return success=true when cp command succeeds", function()
             package.loaded['netman.tools.shell'] = {
                 CONSTANTS = SHELL_CONSTANTS,
-                new = function(_, cmd, opts)
+                new = function(_, _cmd, opts)
                     return {
                         run = function()
                             local result = { exit_code = 0, stderr = "", stdout = "" }

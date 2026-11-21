@@ -2,7 +2,6 @@ _G._QUIET = true -- This makes bootstrap shut up
 vim.g.netman_log_level = 0
 local SHELL_CONSTANTS = require("netman.tools.shell").CONSTANTS
 
-local spy = require("luassert.spy")
 local describe = require('busted').describe
 local it = require('busted').it
 local before_each = require("busted").before_each
