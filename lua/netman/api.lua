@@ -1412,7 +1412,7 @@ function M.get_metadata(uri, metadata_keys, options, callback)
             logger.debugf("Logging message provided by %s for consumer: %s", provider, data.message)
         end
         local metadata = {}
-        for _, key in ipairs(metadata_keys) do
+        for _, key in ipairs(sanitized_metadata_keys) do
             if data and data.data and data.data[key] then
                 metadata[key] = data.data[key]
             end
