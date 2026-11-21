@@ -6,7 +6,6 @@ local describe = require("busted").describe
 local it = require("busted").it
 local before_each = require("busted").before_each
 local after_each = require("busted").after_each
-local pending = require("busted").pending
 
 describe("Netman Container", function()
     describe("#URI", function()
@@ -47,14 +46,70 @@ describe("Netman Container", function()
         end)
     end)
 
-    describe("#_stat_parse / find result parsing", function()
-        pending("should parse find stat output for a file")
-        pending("should parse find stat output for an empty file")
-        pending("should parse find stat output for a directory")
-        pending("should parse find stat output with absolute path name")
+    describe("#_stat_parse", function()
+        local function make_container()
+            local container_mod = require("netman.providers.container")
+            local cache = require("netman.tools.cache"):new()
+            return container_mod:new("podman", "somecontainer", cache)
+        end
+
+        it("should parse find stat output for a file", function()
+            local container = make_container()
+            local input = "MODE=81ed,BLOCKS=0,BLKSIZE=512,MTIME_SEC=1662860937,USER=root,GROUP=root,INODE=1092025921,PERMISSIONS=755,SIZE=0,TYPE=regular file,NAME=/somefilename"
+            local result = container:_stat_parse({input})
+            local stat = result['/somefilename']
+            assert.is_equal('DESTINATION', stat.FIELD_TYPE)
+            assert.is_equal('somefilename', stat.NAME)
+            assert.is_equal('81ed', stat.MODE)
+            assert.is_equal('0', stat.BLOCKS)
+            assert.is_equal('512', stat.BLKSIZE)
+            assert.is_equal('1662860937', stat.MTIME_SEC)
+            assert.is_equal('root', stat.USER)
+            assert.is_equal('root', stat.GROUP)
+            assert.is_equal('1092025921', stat.INODE)
+            assert.is_equal('755', stat.PERMISSIONS)
+            assert.is_equal('0', stat.SIZE)
+            assert.is_equal('podman://somecontainer/somefilename', stat.URI)
+        end)
+
+        it("should parse find stat output for an empty file", function()
+            local container = make_container()
+            local input = "MODE=81ed,BLOCKS=0,BLKSIZE=512,MTIME_SEC=1662860937,USER=root,GROUP=root,INODE=1092025921,PERMISSIONS=755,SIZE=0,TYPE=regular empty file,NAME=/somefilename"
+            local result = container:_stat_parse({input})
+            local stat = result['/somefilename']
+            assert.is_equal('DESTINATION', stat.FIELD_TYPE)
+            assert.is_equal('somefilename', stat.NAME)
+            assert.is_equal('podman://somecontainer/somefilename', stat.URI)
+        end)
+
+        it("should parse find stat output for a directory", function()
+            local container = make_container()
+            local input = "MODE=41ed,BLOCKS=0,BLKSIZE=512,MTIME_SEC=1662860937,USER=root,GROUP=root,INODE=1092025921,PERMISSIONS=755,SIZE=0,TYPE=directory,NAME=/somefilename"
+            local result = container:_stat_parse({input})
+            local stat = result['/somefilename']
+            assert.is_equal('LINK', stat.FIELD_TYPE)
+            assert.is_equal('somefilename', stat.NAME)
+            assert.is_equal('podman://somecontainer/somefilename/', stat.URI)
+        end)
+
+        it("should parse find stat output with absolute path name", function()
+            local container = make_container()
+            local input = "MODE=41ed,BLOCKS=0,BLKSIZE=512,MTIME_SEC=1662860937,USER=root,GROUP=root,INODE=1092025921,PERMISSIONS=755,SIZE=0,TYPE=directory,NAME=/somepath/somefilename"
+            local result = container:_stat_parse({input})
+            local stat = result['/somepath/somefilename']
+            assert.is_equal('LINK', stat.FIELD_TYPE)
+            assert.is_equal('somefilename', stat.NAME)
+            assert.is_equal('podman://somecontainer/somepath/somefilename/', stat.URI)
+            assert.is_equal('somefilename', stat.ABSOLUTE_PATH[#stat.ABSOLUTE_PATH].name)
+            assert.is_equal('podman://somecontainer/somepath/somefilename/', stat.ABSOLUTE_PATH[#stat.ABSOLUTE_PATH].uri)
+        end)
     end)
 
     describe("#cache", function()
+        after_each(function()
+            package.loaded['netman.providers.container'] = nil
+        end)
+
         it("should reuse container from provider cache", function()
             local cache = require("netman.tools.cache"):new()
             local container_mod = require("netman.providers.container")
@@ -238,6 +293,9 @@ describe("Netman Container", function()
 
     describe("#mkdir", function()
         before_each(function()
+            package.loaded['netman.providers.container'] = nil
+        end)
+        after_each(function()
             package.loaded['netman.providers.container'] = nil
         end)
 
